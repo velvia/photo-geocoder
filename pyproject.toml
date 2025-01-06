@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "photo-geocoder"
+version = "0.1.0"
+description = "A script to geocode images using EXIF data and rename them based on the city."
+authors = ["Your Name <your.email@example.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+requests = "^2.26"
+pillow = "^8.4"
+# pyexiv2 = "0.3"  # Optional, only if you want to use pyexiv2 (make sure it works for your system)
+# exiftool = "^12"   # Optional if you decide to use exiftool as a fallback
+geopy = "^2.4.1"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2"  # Optional, if you want to include testing libraries
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
