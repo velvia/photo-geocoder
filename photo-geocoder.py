@@ -26,6 +26,33 @@ from geopy.geocoders import Nominatim
 # Geocoding cache
 geocode_cache = {}
 
+# Helper function to round lat, lon to N decimal places
+def round_coords(lat, lon, decimals=4):
+    factor = 10 ** decimals
+    return round(lat * factor) / factor, round(lon * factor) / factor
+
+# Caching mechanism with rounded coordinates
+class GeocodeCache:
+    def __init__(self, tolerance=0.025, decimals=4):
+        self.cache = {}
+        self.tolerance = tolerance  # This can be used for controlling rounding precision
+        self.decimals = decimals  # Precision of rounding (default 4 decimal places)
+
+    def get_cached_location(self, lat, lon):
+        # Round the coordinates to the specified decimal places
+        rounded_lat, rounded_lon = round_coords(lat, lon, self.decimals)
+
+        # Check if the rounded coordinates are already cached
+        return self.cache.get((rounded_lat, rounded_lon), None)
+
+    def cache_location(self, lat, lon, location):
+        # Round the coordinates to the specified decimal places
+        rounded_lat, rounded_lon = round_coords(lat, lon, self.decimals)
+
+        # Store the location in the cache using the rounded coordinates as the key
+        self.cache[(rounded_lat, rounded_lon)] = location
+
+
 def get_lat_lon_from_exif(image_path):
     """Extracts latitude and longitude from EXIF data using exiftool."""
     try:
@@ -66,11 +93,15 @@ def convert_to_decimal(degrees, ref):
     return decimal
 
 
-def geocode(lat, lon):
+# Geocode function with caching and rounding coordinates
+def geocode(lat, lon, cache):
     """Reverse geocodes the given latitude and longitude, suburb, district, town, city (in that order)."""
-    if (lat, lon) in geocode_cache:
-        print(f"\tUsing cache for {lat}, {lon}")
-        return geocode_cache[(lat, lon)]
+    # Check if this location is in the cache using rounded coordinates
+    location = cache.get_cached_location(lat, lon)
+
+    if location:
+        print(f"Using cached location: {location}")
+        return location
     try:
         # Initialize Nominatim geolocator
         geolocator = Nominatim(user_agent="YourAppName/1.0 (your@email.com)")
@@ -83,7 +114,7 @@ def geocode(lat, lon):
             address = location.raw.get("address", {})
             location = address.get("suburb", address.get("district", address.get("town", address.get("city", ""))))
             if location:
-                geocode_cache[(lat, lon)] = location
+                cache.cache_location(lat, lon, location)
                 return location
             else:
                 print(f"\tNo city/suburb/town found for coordinates: {lat}, {lon}")
@@ -113,10 +144,19 @@ def rename_image(image_path, city_name):
 
 def process_images(folder_path):
     """Processes all images in the given folder."""
+    # Initialize cache with 4 decimal places precision
+    cache = GeocodeCache(tolerance=0.025, decimals=4)
+
     for root, dirs, files in os.walk(folder_path):
         for file in files:
             if file.lower().endswith(('jpg', 'jpeg', 'heic')):
                 image_path = os.path.join(root, file)
+
+                # Test if image file has already been renamed...
+                if '-' in file:
+                    print(f"Skipping {image_path} as it has already been renamed.")
+                    continue
+
                 print(f"Processing {image_path}...")
 
                 # Extract latitude and longitude from EXIF
@@ -127,11 +167,11 @@ def process_images(folder_path):
 
                     # Get city name from coordinates
                     # city_name = get_city_from_lat_lon(lat, lon)
-                    city_name = geocode(lat, lon)
+                    city_name = geocode(lat, lon, cache)
                     if city_name:
                         # Rename the file
                         print(f"{image_path}: {city_name}....")
-                        # rename_image(image_path, city_name)
+                        rename_image(image_path, city_name)
                     else:
                         print(f"City name not found for {image_path}")
                 else:
