@@ -138,7 +138,7 @@ def rename_image(image_path, city_name):
     new_name = f"{base_name}-{city_name.replace(' ', '')}{ext}"
     new_path = os.path.join(dir_name, new_name)
 
-    os.rename(image_path, new_path)
+    # os.rename(image_path, new_path)
     print(f"\tRenamed {image_path} -> {new_path}")
 
 

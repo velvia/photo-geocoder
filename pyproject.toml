@@ -8,10 +8,15 @@ license = "MIT"
 [tool.poetry.dependencies]
 python = "^3.9"
 requests = "^2.26"
-pillow = "^8.4"
-# pyexiv2 = "0.3"  # Optional, only if you want to use pyexiv2 (make sure it works for your system)
-# exiftool = "^12"   # Optional if you decide to use exiftool as a fallback
+# Keep a single Pillow entry – the latest version works with the rest of the stack
+pillow = ">=10.0"
 geopy = "^2.4.1"
+
+# Torch / torchvision – specify the CPU build (most portable) or let the user choose via extras
+torch = "^2.0"
+torchvision = "^0.15"
+
+scikit-image = ">=0.22"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"  # Optional, if you want to include testing libraries
