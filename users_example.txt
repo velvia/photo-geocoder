@@ -1,0 +1,11 @@
+# Example users file for instagram-hashtag-search.py
+# One username per line
+# Lines starting with # are ignored
+
+alice
+bob
+charlie
+john_doe
+jane_smith
+
+

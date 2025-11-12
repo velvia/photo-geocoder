@@ -1,0 +1,9 @@
+# Core dependencies for photo-geocoder project
+requests>=2.26
+pillow>=10.0
+geopy>=2.4.1
+torch>=2.0
+torchvision>=0.15
+scikit-image>=0.22
+playwright>=1.40
+
