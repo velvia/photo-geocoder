@@ -175,3 +175,6 @@ cache.json
 instagram_results.json
 *.json
 !pyproject.json
+
+# Instagram session data (contains login cookies)
+.instagram-session/

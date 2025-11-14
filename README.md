@@ -89,6 +89,20 @@ python instagram-hashtag-search.py --hashtag rebelscapes --users alice -o result
 python instagram-hashtag-search.py --hashtag rebelscapes --users alice --login-wait 60
 ```
 
+**Check more posts (default is 12):**
+```bash
+python instagram-hashtag-search.py --hashtag rebelscapes --users alice --max-posts 20
+```
+
+**Save your login session (RECOMMENDED - Fast & Easy!):**
+```bash
+# First time - log in and save session
+python instagram-hashtag-search.py --hashtag rebelscapes --users alice --save-session --login-wait 60
+
+# Every time after - automatically uses saved login!
+python instagram-hashtag-search.py --hashtag rebelscapes --users alice --save-session
+```
+
 **See all options:**
 ```bash
 python instagram-hashtag-search.py --help
@@ -97,10 +111,12 @@ python instagram-hashtag-search.py --help
 ## 📋 Instagram Search Features
 
 - ✅ Searches Instagram hashtags like `#rebelscapes_username`
-- ✅ Finds the most recent post date for each hashtag
+- ✅ **Checks multiple posts** to find the actual most recent date (default: 12 posts)
+- ✅ Clicks through each post, extracts dates, and determines the newest one
+- ✅ **Saves your login session** - log in once, stays logged in forever! (use `--save-session`)
 - ✅ Supports multiple browsers (Chrome/Chromium, Safari/WebKit, Firefox)
 - ✅ Can read usernames from a file (one per line)
-- ✅ Saves results to JSON
+- ✅ Saves results to JSON with detailed stats
 - ✅ Shows progress and summary
 - ✅ Handles errors gracefully
 - ✅ Respects rate limiting with configurable wait times
@@ -131,11 +147,15 @@ Results are saved as JSON:
 ## ⚠️ Important Notes
 
 ### Instagram Search
-- **Login Required:** The script gives you 30 seconds (by default) to log into Instagram in the browser window
-- Use `--login-wait 60` to get more time to log in (recommended if you type slowly!)
+- **Login Options:**
+  - **Option A (RECOMMENDED):** Use `--save-session` to save your login. Log in once on first run, then never again!
+  - **Option B:** Log in each time the script runs (use `--login-wait 60` for 60 seconds to log in)
+- **Session Storage:** Cookies and login info are saved to `.instagram-session/` directory (ignored by git)
+- **Post Checking:** By default checks 12 posts per hashtag. Instagram doesn't sort chronologically, so checking multiple posts finds the actual newest one
+- Use `--max-posts 20` to check more posts (higher = slower but more accurate)
 - Instagram may rate limit if you search too many hashtags too quickly (default wait: 3 seconds)
 - Use `--wait N` to increase wait time between searches if needed
-- Headless mode (`--headless`) is faster but harder to debug and you can't log in manually
+- Headless mode (`--headless`) is faster but you can't log in manually (only works if you've already saved a session)
 
 ### Photo Geocoder
 - Requires `exiftool` to be installed on your system
