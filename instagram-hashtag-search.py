@@ -431,27 +431,44 @@ class InstagramHashtagSearcher:
     def print_summary(self):
         """Print a summary of the results."""
         print("\n" + "=" * 60)
-        print("📊 SUMMARY")
+        print("📊 SUMMARY (sorted by least recent first)")
         print("=" * 60)
 
-        for username, data in self.results.items():
-            status_emoji = {
-                "success": "✅",
-                "no_posts": "📭",
-                "posts_not_accessible": "🔒",
-                "date_not_found": "⚠️",
-                "timeout": "⏱️",
-            }.get(data.get("status", "").split(":")[0], "❌")
+        # Separate users into those with dates and those without
+        users_without_dates = []
+        users_with_dates = []
 
-            print(f"\n{status_emoji} {username}")
-            print(f"   Hashtag: {data.get('hashtag', 'N/A')}")
-            print(f"   Total Posts: {data.get('post_count', 'N/A')}")
-            if 'posts_checked' in data:
-                print(f"   Posts Checked: {data.get('posts_checked', 'N/A')}")
-            if 'dates_found' in data:
-                print(f"   Dates Found: {data.get('dates_found', 'N/A')}")
-            print(f"   Most Recent: {data.get('most_recent_date', 'N/A')}")
-            print(f"   Status: {data.get('status', 'N/A')}")
+        for username, data in self.results.items():
+            most_recent = data.get('most_recent_date')
+            if most_recent and most_recent != 'N/A' and most_recent is not None:
+                # Extract just the date part (YYYY-MM-DD)
+                date_only = most_recent.split()[0] if ' ' in most_recent else most_recent
+                try:
+                    # Parse date for sorting
+                    parsed_date = datetime.strptime(date_only, '%Y-%m-%d')
+                    users_with_dates.append((username, date_only, parsed_date))
+                except ValueError:
+                    # If parsing fails, treat as no date
+                    users_without_dates.append(username)
+            else:
+                # No valid date - these should be at the top
+                users_without_dates.append(username)
+
+        # Sort users with dates by date (oldest first - least recent)
+        users_with_dates.sort(key=lambda x: x[2])
+
+        # Sort users without dates alphabetically for consistency
+        users_without_dates.sort()
+
+        # Print in the requested format
+        print()
+        # First print users without dates (not featured yet - highest priority)
+        for username in users_without_dates:
+            print(f"{username} - most_recent: N/A")
+
+        # Then print users with dates (sorted by oldest first)
+        for username, date_only, _ in users_with_dates:
+            print(f"{username} - most_recent: {date_only}")
 
 
 def load_usernames_from_file(file_path: str) -> List[str]:
