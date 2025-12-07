@@ -61,7 +61,9 @@ class InstagramHashtagSearcher:
         Returns:
             Dictionary with results or None if not found
         """
-        hashtag = f"{hashtag_base}_{username}"
+        # Remove periods from username for hashtag (e.g., leo19.62 -> leo1962)
+        username_clean = username.replace('.', '')
+        hashtag = f"{hashtag_base}_{username_clean}"
         search_url = f"https://www.instagram.com/explore/tags/{hashtag}/"
 
         print(f"\n🔍 Searching for #{hashtag}...")
