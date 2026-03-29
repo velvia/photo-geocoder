@@ -42,6 +42,46 @@ class InstagramHashtagSearcher:
         self.user_data_dir = user_data_dir
         self.results: Dict[str, Dict] = {}
 
+    async def _post_modal_contains_hashtag(self, page: Page, hashtag_slug: str) -> bool:
+        """
+        True if the open post's caption/body includes the target hashtag.
+        Prefer tag links (Instagram uses /explore/tags/{slug}/); fall back to raw text.
+        """
+        try:
+            has_tag_link = await page.evaluate(
+                """(slug) => {
+                    const slugLower = String(slug).toLowerCase();
+                    const anchors = document.querySelectorAll('a[href*="/explore/tags/"]');
+                    for (const a of anchors) {
+                        try {
+                            const u = new URL(a.getAttribute('href') || '', window.location.origin);
+                            const parts = u.pathname.split('/').filter(Boolean);
+                            const ti = parts.indexOf('tags');
+                            if (ti >= 0 && ti + 1 < parts.length) {
+                                if (parts[ti + 1].toLowerCase() === slugLower) return true;
+                            }
+                        } catch (e) { /* ignore */ }
+                    }
+                    return false;
+                }""",
+                hashtag_slug,
+            )
+            if has_tag_link:
+                return True
+        except Exception:
+            pass
+
+        try:
+            article = await page.query_selector("article")
+            if article:
+                text = await article.inner_text()
+                if text and f"#{hashtag_slug}".lower() in text.lower():
+                    return True
+        except Exception:
+            pass
+
+        return False
+
     async def search_hashtag_for_user(
         self,
         page: Page,
@@ -52,11 +92,14 @@ class InstagramHashtagSearcher:
         """
         Search for a specific hashtag and find the most recent post date.
 
+        Only posts whose caption includes the exact tag (e.g. #rebelscapes_user) are
+        used for dates; the explore grid may show other posts for that tag URL.
+
         Args:
             page: Playwright page object
             hashtag_base: Base hashtag without the username (e.g., 'rebelscapes')
             username: Username to append to hashtag (e.g., 'johndoe')
-            max_posts_to_check: Maximum number of posts to check for dates
+            max_posts_to_check: Maximum grid posts to open (raise if many lack the tag)
 
         Returns:
             Dictionary with results or None if not found
@@ -121,8 +164,9 @@ class InstagramHashtagSearcher:
                 posts_to_check = all_post_links[:max_posts_to_check]
                 print(f"  🔍 Checking {len(posts_to_check)} posts to find the most recent...")
 
-                # Store all dates we find
+                # Store all dates we find (only from posts whose caption includes the tag)
                 all_dates = []
+                skipped_no_hashtag = 0
 
                 # Check each post
                 for i, post_link in enumerate(posts_to_check, 1):
@@ -132,6 +176,13 @@ class InstagramHashtagSearcher:
                         # Click on the post
                         await post_link.click()
                         await page.wait_for_timeout(2000)
+
+                        if not await self._post_modal_contains_hashtag(page, hashtag):
+                            skipped_no_hashtag += 1
+                            print(f"      ⏭️  Skipping: caption does not include #{hashtag}")
+                            await page.keyboard.press('Escape')
+                            await page.wait_for_timeout(1000)
+                            continue
 
                         # Try to find the date/time information
                         post_date = None
@@ -208,13 +259,28 @@ class InstagramHashtagSearcher:
 
                 # Now find the most recent date
                 if not all_dates:
-                    print(f"  ⚠️  Could not find dates in any of the {len(posts_to_check)} posts checked")
+                    if skipped_no_hashtag == len(posts_to_check):
+                        print(
+                            f"  ⚠️  None of the {len(posts_to_check)} posts include #{hashtag} in the caption"
+                        )
+                        status = "hashtag_not_in_captions"
+                    elif skipped_no_hashtag:
+                        print(
+                            f"  ⚠️  Skipped {skipped_no_hashtag} post(s) without #{hashtag}; "
+                            f"no parseable dates in the rest"
+                        )
+                        status = "dates_not_found"
+                    else:
+                        print(f"  ⚠️  Could not find dates in any of the {len(posts_to_check)} posts checked")
+                        status = "dates_not_found"
                     return {
                         "username": username,
                         "hashtag": f"#{hashtag}",
                         "post_count": len(posts_to_check),
+                        "posts_matching_hashtag": 0,
+                        "skipped_no_hashtag_in_caption": skipped_no_hashtag,
                         "most_recent_date": None,
-                        "status": "dates_not_found"
+                        "status": status
                     }
 
                 # Parse and find most recent
@@ -241,6 +307,7 @@ class InstagramHashtagSearcher:
                         "hashtag": f"#{hashtag}",
                         "post_count": len(all_post_links),
                         "posts_checked": len(posts_to_check),
+                        "skipped_no_hashtag_in_caption": skipped_no_hashtag,
                         "dates_found": len(all_dates),
                         "most_recent_date": formatted_date,
                         "status": "success"
@@ -254,6 +321,7 @@ class InstagramHashtagSearcher:
                         "hashtag": f"#{hashtag}",
                         "post_count": len(all_post_links),
                         "posts_checked": len(posts_to_check),
+                        "skipped_no_hashtag_in_caption": skipped_no_hashtag,
                         "dates_found": len(all_dates),
                         "most_recent_date": first_date,
                         "status": "success_unparsed"
@@ -572,7 +640,7 @@ Examples:
         '--max-posts',
         type=int,
         default=12,
-        help='Maximum number of posts to check per hashtag [default: 12]'
+        help='Max grid posts to open per tag; only captions containing the tag count [default: 12]'
     )
 
     args = parser.parse_args()
