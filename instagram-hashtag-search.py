@@ -99,7 +99,7 @@ class InstagramHashtagSearcher:
             page: Playwright page object
             hashtag_base: Base hashtag without the username (e.g., 'rebelscapes')
             username: Username to append to hashtag (e.g., 'johndoe')
-            max_posts_to_check: Maximum grid posts to open (raise if many lack the tag)
+            max_posts_to_check: Max posts that include the tag to search for dates (grid opens until then)
 
         Returns:
             Dictionary with results or None if not found
@@ -131,7 +131,8 @@ class InstagramHashtagSearcher:
                     "status": "no_posts"
                 }
 
-            # Find ALL posts in the grid (up to max_posts_to_check)
+            # Find posts in the grid; open as many as needed until we date-check
+            # max_posts_to_check caption matches (skips do not count toward the limit).
             try:
                 # Instagram shows posts in various ways - try multiple selectors
                 post_link_selectors = [
@@ -160,18 +161,23 @@ class InstagramHashtagSearcher:
                         "status": "posts_not_accessible"
                     }
 
-                # Limit to max_posts_to_check
-                posts_to_check = all_post_links[:max_posts_to_check]
-                print(f"  🔍 Checking {len(posts_to_check)} posts to find the most recent...")
+                print(
+                    f"  🔍 Searching for dates in up to {max_posts_to_check} post(s) "
+                    f"that include #{hashtag} in the caption (other grid posts are skipped)..."
+                )
 
                 # Store all dates we find (only from posts whose caption includes the tag)
                 all_dates = []
                 skipped_no_hashtag = 0
+                matched_for_dates = 0
+                total_grid_opens = 0
 
-                # Check each post
-                for i, post_link in enumerate(posts_to_check, 1):
+                for post_link in all_post_links:
+                    if matched_for_dates >= max_posts_to_check:
+                        break
+                    total_grid_opens += 1
                     try:
-                        print(f"    [{i}/{len(posts_to_check)}] Checking post...")
+                        print(f"    [Grid #{total_grid_opens}] Opening post...")
 
                         # Click on the post
                         await post_link.click()
@@ -183,6 +189,12 @@ class InstagramHashtagSearcher:
                             await page.keyboard.press('Escape')
                             await page.wait_for_timeout(1000)
                             continue
+
+                        matched_for_dates += 1
+                        print(
+                            f"      ✓ #{hashtag} in caption — extracting date "
+                            f"({matched_for_dates}/{max_posts_to_check})"
+                        )
 
                         # Try to find the date/time information
                         post_date = None
@@ -248,7 +260,7 @@ class InstagramHashtagSearcher:
                         await page.wait_for_timeout(1000)
 
                     except Exception as e:
-                        print(f"      ❌ Error checking post {i}: {e}")
+                        print(f"      ❌ Error checking grid post #{total_grid_opens}: {e}")
                         # Try to close modal and continue
                         try:
                             await page.keyboard.press('Escape')
@@ -259,25 +271,39 @@ class InstagramHashtagSearcher:
 
                 # Now find the most recent date
                 if not all_dates:
-                    if skipped_no_hashtag == len(posts_to_check):
+                    if (
+                        matched_for_dates == 0
+                        and skipped_no_hashtag == total_grid_opens
+                        and total_grid_opens > 0
+                    ):
                         print(
-                            f"  ⚠️  None of the {len(posts_to_check)} posts include #{hashtag} in the caption"
+                            f"  ⚠️  None of the {total_grid_opens} grid post(s) include #{hashtag} in the caption"
                         )
                         status = "hashtag_not_in_captions"
+                    elif matched_for_dates > 0:
+                        print(
+                            f"  ⚠️  {matched_for_dates} post(s) had #{hashtag} in the caption "
+                            f"but no parseable date was found"
+                        )
+                        status = "dates_not_found"
                     elif skipped_no_hashtag:
                         print(
                             f"  ⚠️  Skipped {skipped_no_hashtag} post(s) without #{hashtag}; "
-                            f"no parseable dates in the rest"
+                            f"grid exhausted or errors before finding enough matches"
                         )
                         status = "dates_not_found"
                     else:
-                        print(f"  ⚠️  Could not find dates in any of the {len(posts_to_check)} posts checked")
+                        print(
+                            f"  ⚠️  Could not find dates "
+                            f"({total_grid_opens} grid post(s) opened)"
+                        )
                         status = "dates_not_found"
                     return {
                         "username": username,
                         "hashtag": f"#{hashtag}",
-                        "post_count": len(posts_to_check),
-                        "posts_matching_hashtag": 0,
+                        "post_count": len(all_post_links),
+                        "grid_posts_opened": total_grid_opens,
+                        "posts_checked": matched_for_dates,
                         "skipped_no_hashtag_in_caption": skipped_no_hashtag,
                         "most_recent_date": None,
                         "status": status
@@ -306,7 +332,8 @@ class InstagramHashtagSearcher:
                         "username": username,
                         "hashtag": f"#{hashtag}",
                         "post_count": len(all_post_links),
-                        "posts_checked": len(posts_to_check),
+                        "grid_posts_opened": total_grid_opens,
+                        "posts_checked": matched_for_dates,
                         "skipped_no_hashtag_in_caption": skipped_no_hashtag,
                         "dates_found": len(all_dates),
                         "most_recent_date": formatted_date,
@@ -320,7 +347,8 @@ class InstagramHashtagSearcher:
                         "username": username,
                         "hashtag": f"#{hashtag}",
                         "post_count": len(all_post_links),
-                        "posts_checked": len(posts_to_check),
+                        "grid_posts_opened": total_grid_opens,
+                        "posts_checked": matched_for_dates,
                         "skipped_no_hashtag_in_caption": skipped_no_hashtag,
                         "dates_found": len(all_dates),
                         "most_recent_date": first_date,
@@ -372,7 +400,7 @@ class InstagramHashtagSearcher:
             usernames: List of usernames to search
             wait_between_searches: Seconds to wait between searches
             login_wait: Seconds to wait for user to log in (0 to skip)
-            max_posts_to_check: Maximum number of posts to check per hashtag
+            max_posts_to_check: Max posts with the tag in caption to extract dates from per hashtag
 
         Returns:
             Dictionary of results keyed by username
@@ -640,7 +668,7 @@ Examples:
         '--max-posts',
         type=int,
         default=12,
-        help='Max grid posts to open per tag; only captions containing the tag count [default: 12]'
+        help='Max posts (with tag in caption) to extract dates from; extra grid opens do not count [default: 12]'
     )
 
     args = parser.parse_args()
